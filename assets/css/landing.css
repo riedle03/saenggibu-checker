@@ -1,0 +1,210 @@
+/* ==========================================================================
+   생기부 점검 허브 — 랜딩 페이지 전용 스타일 (index.html)
+   design-system.css 이후에 로드된다. 토큰/컴포넌트는 그쪽 것을 그대로 쓴다.
+   ========================================================================== */
+
+/* ---- 섹션 공용 헤더 -------------------------------------------------------- */
+.section-eyebrow {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand-deep);
+  margin-bottom: 12px;
+}
+.section-title {
+  font-size: clamp(24px, 3.4vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.section-desc {
+  font-size: 15px;
+  color: var(--ink-soft);
+  max-width: 520px;
+}
+.section-head { margin-bottom: 40px; }
+
+/* ---- 히어로 --------------------------------------------------------------- */
+.hero { padding-block: clamp(48px, 8vw, 88px) var(--section-pad); }
+.hero .container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+  gap: 56px;
+  align-items: center;
+}
+@media (max-width: 960px) {
+  .hero .container { grid-template-columns: 1fr; gap: 40px; }
+  .hero-illus-wrap { order: -1; max-width: 420px; margin-inline: auto; }
+}
+
+.hero-copy .badge { margin-bottom: 18px; }
+
+.hero-title {
+  font-size: clamp(30px, 4.6vw, 50px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.28;
+  color: var(--ink);
+  margin: 0 0 20px;
+}
+
+/* 시그니처: 인디고 → 파스텔 형광펜 스윕 (load 시 1회, 헤드라인 핵심 구절 한정) */
+.hl-sweep {
+  background-image: linear-gradient(90deg, var(--brand-soft), var(--hl-amber-bg) 92%);
+  background-repeat: no-repeat;
+  background-position: 0 86%;
+  background-size: 0% 58%;
+  padding: 0 3px;
+  color: var(--brand-deep);
+  animation: hl-sweep-in 0.6s cubic-bezier(0.22, 0.75, 0.28, 1) 0.2s forwards;
+}
+@keyframes hl-sweep-in {
+  to { background-size: 100% 58%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hl-sweep { animation: none; background-size: 100% 58%; }
+}
+
+.hero-desc {
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  max-width: 460px;
+  margin: 0 0 32px;
+}
+
+.hero-cta { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* ---- 히어로 대체 아트: 미니 점검 결과 미리보기 카드 ------------------------- */
+.illus-hero { aspect-ratio: 8 / 5; background: transparent; }
+.illus-hero .illus-fallback {
+  position: relative;
+  background: radial-gradient(circle at 30% 20%, var(--brand-soft), transparent 60%);
+  padding: 24px;
+}
+.mock-card {
+  position: relative;
+  width: min(340px, 88%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  padding: 22px 22px 18px;
+  transform: rotate(-2.5deg);
+}
+.mock-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transform: rotate(4deg) translate(10px, 14px);
+  z-index: -1;
+  opacity: 0.7;
+}
+.mock-card__dots { display: flex; gap: 5px; margin-bottom: 14px; }
+.mock-card__dots span {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--line);
+}
+.mock-card__line {
+  font-size: 14.5px;
+  line-height: 1.85;
+  color: var(--ink);
+  word-break: keep-all;
+}
+.mock-card__line mark {
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 600;
+}
+.mock-card__line .hl-rose  { background: var(--hl-rose-bg);  color: var(--hl-rose-ink); }
+.mock-card__line .hl-amber { background: var(--hl-amber-bg); color: var(--hl-amber-ink); }
+.mock-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+.mock-card__meta .gauge { width: 88px; }
+
+/* ---- 도구 카드 ------------------------------------------------------------- */
+.tools { padding-block: var(--section-pad); }
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.tool-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); }
+.tool-card .illus {
+  aspect-ratio: 16 / 9;
+  background: radial-gradient(circle at 32% 28%, #FFFFFF, var(--brand-soft) 72%);
+}
+.tool-card__title {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.tool-card__desc { font-size: 14.5px; line-height: 1.65; color: var(--ink-soft); flex-grow: 1; }
+
+.illus-fallback-icon { width: 88px; height: 88px; }
+
+/* ---- 특징 3 --------------------------------------------------------------- */
+.features { padding-block: var(--section-pad); }
+.feature-card { display: flex; flex-direction: column; gap: 14px; }
+.feature-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.feature-card__title { font-size: 16.5px; font-weight: 700; color: var(--ink); }
+.feature-card__desc { font-size: 14.5px; line-height: 1.65; color: var(--ink-soft); }
+
+/* ---- 3스텝 사용법 ----------------------------------------------------------
+   실제 순서가 있는 절차이므로 번호(01/02/03) 사용이 정당하다.
+   ------------------------------------------------------------------------- */
+.steps { padding-block: var(--section-pad); }
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  position: relative;
+}
+@media (max-width: 800px) {
+  .steps-grid { grid-template-columns: 1fr; gap: 16px; }
+}
+.step { position: relative; padding-top: 8px; }
+.step-num {
+  display: block;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--brand-soft);
+  -webkit-text-stroke: 1.5px var(--brand);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+.step-title { font-size: 16.5px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.step-desc { font-size: 14.5px; line-height: 1.65; color: var(--ink-soft); }
+@media (min-width: 801px) {
+  .step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 20px;
+    right: -12px;
+    width: 24px;
+    height: 1px;
+    background: var(--line);
+  }
+}

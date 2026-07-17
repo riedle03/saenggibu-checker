@@ -1,0 +1,15 @@
+node_modules/
+
+# OMC / 세션 상태
+.omc/
+.remember/
+
+# 학생 개인정보가 포함된 표본 엑셀 실수 커밋 방지
+*.xlsx
+
+# Vercel
+.vercel
+
+# OS 잡파일
+Thumbs.db
+.DS_Store

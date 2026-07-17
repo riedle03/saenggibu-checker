@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>창체·행특 점검기 · 생기부 점검 허브</title>
+<meta name="description" content="동아리·진로·자율·행동특성 엑셀을 올리면 활동유형별로 정리해서 NEIS 기재 가이드에 맞는지 바로 점검합니다.">
+
+<meta property="og:title" content="창체·행특 점검기 · 생기부 점검 허브">
+<meta property="og:description" content="동아리·진로·자율·행동특성 엑셀을 올리면 활동유형별로 정리해서 NEIS 기재 가이드에 맞는지 바로 점검합니다.">
+<meta property="og:image" content="./assets/img/og.png">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="./assets/css/design-system.css">
+<link rel="stylesheet" href="./assets/css/checker.css">
+<link rel="stylesheet" href="./assets/css/career.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="site-logo" href="./index.html">
+      <svg class="site-logo__mark" width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="16" fill="#4F46E5"/>
+        <path d="M17 33.5 L27 43.5 L47 20.5" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      생기부 점검 허브
+    </a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a class="site-nav__link" href="./subject.html">교과세특</a>
+      <a class="site-nav__link" href="./career.html" aria-current="page">창체·행특</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="page-head">
+    <div class="container">
+      <span class="badge">NEIS 창체·행동특성 점검</span>
+      <h1 class="page-title">창체·행특 점검기</h1>
+      <p class="page-desc">동아리·진로·자율·행동특성 엑셀을 올리면 학생별로 자동 분리하고, 생기부 기재 가이드(기재불가·대체표현)를 반영해 점검합니다. 학생 데이터는 브라우저 밖으로 나가지 않습니다.</p>
+    </div>
+  </section>
+
+  <section class="type-section">
+    <div class="container">
+      <div class="toggle-group" id="activityTabs" role="tablist" aria-label="활동 유형 선택">
+        <button type="button" class="toggle-btn active" data-type="club" role="tab" aria-selected="true">동아리활동</button>
+        <button type="button" class="toggle-btn" data-type="career" role="tab" aria-selected="false">진로활동</button>
+        <button type="button" class="toggle-btn" data-type="auto" role="tab" aria-selected="false">자율활동</button>
+        <button type="button" class="toggle-btn" data-type="behavior" role="tab" aria-selected="false">행동특성·종합의견</button>
+      </div>
+      <p class="type-desc" id="typeDesc"></p>
+    </div>
+  </section>
+
+  <section class="upload-section">
+    <div class="container">
+      <div class="card">
+        <h2 class="card-title">엑셀 파일 불러오기</h2>
+        <div class="neis-guide" id="neisGuide"></div>
+
+        <div class="upload-zone" id="uploadZone" tabindex="0" role="button" aria-label="엑셀 파일 올리기">
+          <input type="file" id="fileInput" accept=".xlsx,.xls" multiple hidden>
+          <p class="upload-zone__main">
+            여기로 엑셀 파일을 끌어다 놓거나
+            <button type="button" class="btn btn-primary" id="browseBtn">파일 선택</button>
+          </p>
+          <p class="upload-zone__hint" id="uploadHint">여러 파일을 한 번에 올리면 성명·번호 기준으로 자동 합쳐집니다.</p>
+        </div>
+        <p class="upload-status" id="uploadStatus" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <div class="container">
+      <div class="card settings-row">
+        <label class="settings-row__field" for="byteLimit">
+          <span class="settings-row__label">바이트 제한</span>
+          <input type="number" id="byteLimit" value="1500" min="50" step="10">
+        </label>
+        <span class="settings-row__hint" id="byteHint"></span>
+        <span class="settings-row__source" id="sourceInfo"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="students-section">
+    <div class="container">
+      <div class="section-head-row">
+        <h2 class="section-title-sm">학생 자료</h2>
+        <div class="students-actions">
+          <button type="button" class="btn btn-ghost" id="addBtn">+ 학생 직접 추가</button>
+          <button type="button" class="btn btn-ghost" id="clearBtn">전체 지우기</button>
+          <button type="button" class="btn btn-primary" id="analyzeBtn">전체 점검하기</button>
+        </div>
+      </div>
+
+      <div class="legend" id="legend"></div>
+
+      <div id="cardsContainer"></div>
+    </div>
+  </section>
+
+  <section class="results-section" id="resultsSection">
+    <div class="container results-summary" id="resultsSummary"></div>
+
+    <div class="action-bar" id="actionBar" hidden>
+      <div class="container action-bar__row">
+        <span class="action-bar__label" id="actionBarLabel"></span>
+        <div class="action-bar__buttons">
+          <button type="button" class="btn btn-primary" id="exportSummaryBtn">전체 요약 xlsx</button>
+          <button type="button" class="btn btn-ghost" id="copyIssuesBtn">이슈만 복사</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div id="resultsBody"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container site-footer__inner">
+    <p class="site-footer__credit">이대형 · Made with Claude · <a href="mailto:riedel@e-mrim.hs.kr">riedel@e-mrim.hs.kr</a></p>
+    <p class="site-footer__privacy">학생 데이터는 브라우저 밖으로 나가지 않습니다</p>
+  </div>
+</footer>
+
+<script src="./assets/vendor/xlsx.full.min.js"></script>
+<script src="./assets/js/checker-core.js"></script>
+<script src="./assets/js/xlsx-parse.js"></script>
+<script src="./assets/js/export.js"></script>
+<script src="./assets/js/rules-career.js"></script>
+<script src="./assets/js/career-app.js"></script>
+</body>
+</html>
