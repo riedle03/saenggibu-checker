@@ -130,6 +130,13 @@
   border-top: 1px dashed var(--line);
 }
 .mock-card__meta .gauge { width: 88px; }
+/* width 트랜지션 대신 transform:scaleX — 값은 HTML의 --fill 변수로 주입 */
+.mock-card__meta .gauge-fill {
+  width: 100%;
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left;
+  transition: transform 0.3s ease, background 0.15s ease;
+}
 
 /* ---- 도구 카드 ------------------------------------------------------------- */
 .tools { padding-block: var(--section-pad); }
@@ -154,21 +161,83 @@
 
 .illus-fallback-icon { width: 88px; height: 88px; }
 
-/* ---- 특징 3 --------------------------------------------------------------- */
-.features { padding-block: var(--section-pad); }
-.feature-card { display: flex; flex-direction: column; gap: 14px; }
-.feature-icon {
-  width: 44px;
-  height: 44px;
+/* ---- 신뢰 스트립 + 상세 -----------------------------------------------------
+   구 '특징 3카드'(동일 아이콘 타일 반복)를 대체. 가장 중요한 신뢰 메시지는
+   넓은 스트립으로 승격하고, 나머지 2가지는 서로 다른 형태(칩 나열형 서술 /
+   실제 UI 조각 미리보기)로 보여줘 카드 그리드 반복을 피한다.
+   ------------------------------------------------------------------------- */
+.trust { padding-block: var(--section-pad); }
+
+.trust-strip {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 28px clamp(22px, 4vw, 40px);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--brand-soft), var(--surface) 75%);
+  border: 1px solid var(--line);
+  margin-bottom: 28px;
+}
+.trust-strip__icon {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  background: var(--brand-soft);
+  background: var(--surface);
   color: var(--brand);
+  box-shadow: var(--shadow-1);
 }
-.feature-card__title { font-size: 16.5px; font-weight: 700; color: var(--ink); }
-.feature-card__desc { font-size: 14.5px; line-height: 1.65; color: var(--ink-soft); }
+.trust-strip__title {
+  font-size: clamp(19px, 2.4vw, 23px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.trust-strip__desc { font-size: 15px; line-height: 1.65; color: var(--ink-soft); max-width: 560px; }
+@media (max-width: 640px) {
+  .trust-strip { flex-direction: column; align-items: flex-start; gap: 16px; }
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 32px;
+  align-items: start;
+}
+@media (max-width: 840px) {
+  .trust-grid { grid-template-columns: 1fr; gap: 20px; }
+}
+
+.trust-note { padding-top: 4px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.trust-note__text { font-size: 16px; line-height: 1.75; color: var(--ink); max-width: 380px; }
+.trust-note__text strong { color: var(--brand-deep); font-weight: 700; }
+
+.trust-snippet {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-1);
+  padding: 18px 20px;
+}
+.file-row { display: flex; align-items: center; gap: 8px; }
+.file-row__icon { flex-shrink: 0; color: var(--brand); }
+.file-row__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-grow: 1;
+  min-width: 0;
+}
+.btn-sm { flex-shrink: 0; padding: 7px 14px; font-size: 13px; }
+.trust-snippet__desc { font-size: 13.5px; line-height: 1.65; color: var(--ink-soft); margin-top: 14px; }
 
 /* ---- 3스텝 사용법 ----------------------------------------------------------
    실제 순서가 있는 절차이므로 번호(01/02/03) 사용이 정당하다.

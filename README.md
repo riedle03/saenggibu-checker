@@ -58,6 +58,7 @@ vercel deploy --prod
 ## 크레딧
 
 이대형 · Made with Claude · riedel@e-mrim.hs.kr
+도움주신 분 · 송내고등학교 조경옥 선생님
 
 ## 라이선스
 

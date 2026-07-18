@@ -47,14 +47,87 @@
 }
 .action-bar__label { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 .action-bar__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn-label-short { display: none; }
 @media (max-width: 640px) {
-  .action-bar__buttons .btn { flex: 1 1 auto; }
+  /* 모바일은 버튼 3개가 줄바꿈 없이 한 줄에 들어가도록 축약 라벨로 전환 */
+  .action-bar__buttons { flex-wrap: nowrap; gap: 6px; }
+  .action-bar__buttons .btn { flex: 1 1 0; min-width: 0; padding: 10px 6px; font-size: 13px; gap: 0; }
+  .btn-label-full { display: none; }
+  .btn-label-short { display: inline; }
+}
+
+/* ---- 결과 헤드라인(§P0 — 점검 실행 후 스크롤 앵커) --------------------------- */
+.results-headline {
+  padding-block: 28px 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  scroll-margin-top: calc(var(--header-h) + 16px);
 }
 
 /* ---- 결과 요약 스탯 영역(보너스 래퍼) --------------------------------------- */
 .results-summary {
   padding-block: 28px 8px;
 }
+.stat-label { white-space: nowrap; }
+
+/* ---- 학생자료 접이식 헤더(§P1) ----------------------------------------------- */
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.section-toggle__caret { color: var(--ink-soft); transition: transform 0.15s ease; flex-shrink: 0; }
+.section-toggle[aria-expanded="false"] .section-toggle__caret { transform: rotate(-90deg); }
+
+/* ---- 결과 컨트롤 토글(확정 위반만·이슈 있는 학생만) --------------------------- */
+.results-toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+.check-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.check-toggle input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+
+/* ---- 범례 접이식(§P3 — 결과가 있을 때만 표시) --------------------------------- */
+.legend-details { margin: 0 0 18px; }
+.legend-details[hidden] { display: none; }
+.legend-details__summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brand-deep);
+  padding: 4px 2px;
+  list-style: none;
+}
+.legend-details__summary::-webkit-details-marker { display: none; }
+.legend-details__summary::marker { content: ''; }
+.legend-details .legend { margin: 8px 0 0; }
+
+/* ---- 이슈 그룹핑(§P1 — 동일 규칙 다수 발생 1행 접기) --------------------------- */
+.issue-group__toggle {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+.issue-group__caret { margin-left: auto; color: var(--ink-soft); transition: transform 0.15s ease; flex-shrink: 0; }
+.issue-group__toggle[aria-expanded="true"] .issue-group__caret { transform: rotate(180deg); }
+.issue-group__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+.issue-group__body[hidden] { display: none; }
 
 /* ---- 과목/유형 섹션 --------------------------------------------------------- */
 .subject-section { padding-block: 28px; border-bottom: 1px solid var(--line); }
@@ -106,8 +179,20 @@
 .student-card__gauge-wrap .gauge { flex-grow: 1; }
 .student-card__gauge-label { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* ---- 게이지 채움 애니메이션(§P3 — width 대신 transform:scaleX) ----------------
+   design-system.css .gauge-fill의 값을 checker.css(로드 순서상 이후)에서 재정의.
+   같은 클래스 선택자라 후행 규칙이 이겨 width:100%+scaleX 방식으로 동작한다.
+   JS(checker-core.js renderGauge)는 fill.style.transform만 매 렌더 갱신한다. */
+.gauge-fill {
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease, background 0.15s ease;
+}
+
 /* ---- 본문 하이라이트 -------------------------------------------------------- */
 .annotated {
+  max-width: 80ch;
   font-size: 15px;
   line-height: 1.9;
   color: var(--ink);

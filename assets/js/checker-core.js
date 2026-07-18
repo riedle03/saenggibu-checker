@@ -60,7 +60,7 @@
       html += escapeHtml(s.slice(cursor, start));
       var cls = f.color || 'm-slate';
       var title = f.note || f.quote || f.rule || '';
-      html += '<mark class="' + escapeAttr(cls) + '" title="' + escapeAttr(title) + '">' + escapeHtml(s.slice(start, end)) + '</mark>';
+      html += '<mark class="' + escapeAttr(cls) + '" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '">' + escapeHtml(s.slice(start, end)) + '</mark>';
       cursor = end;
     });
     html += escapeHtml(s.slice(cursor));
@@ -79,7 +79,9 @@
       el.appendChild(fill);
     }
     var pct = limit > 0 ? Math.min(100, (bytes / limit) * 100) : 0;
-    fill.style.width = pct + '%';
+    // width가 아닌 transform:scaleX로 채운다 — 레이아웃 재계산 없이 합성만으로 전환(시각 결과는 동일).
+    // 대응 base 스타일(width:100%/transform-origin:left)은 checker.css .gauge-fill 에서 설정.
+    fill.style.transform = 'scaleX(' + (pct / 100) + ')';
     var over = bytes > limit;
     el.classList.toggle('over', over);
     fill.classList.toggle('over', over);
@@ -134,6 +136,21 @@
     toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2400);
   }
 
+  // ------------------------------------------------------------------
+  // 이슈 그룹핑 — 결과 밀도 축소(§P1). 순서를 보존하며 keyFn 반환값이 같은
+  // 항목끼리 묶는다. 페이지별 표시 로직(subject/career)은 각 app.js가 담당.
+  // ------------------------------------------------------------------
+  function groupBy(items, keyFn) {
+    var order = [];
+    var map = {};
+    (items || []).forEach(function (it) {
+      var k = keyFn(it);
+      if (!Object.prototype.hasOwnProperty.call(map, k)) { map[k] = []; order.push(k); }
+      map[k].push(it);
+    });
+    return order.map(function (k) { return { key: k, items: map[k] }; });
+  }
+
   g.SGB.core = {
     byteLen: byteLen,
     charLen: charLen,
@@ -142,6 +159,7 @@
     renderGauge: renderGauge,
     saveState: saveState,
     loadState: loadState,
-    toast: toast
+    toast: toast,
+    groupBy: groupBy
   };
 })();

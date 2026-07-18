@@ -11,6 +11,7 @@
   var RC = SGB.rulesCareer;
   var PROFILES = RC.PROFILES;
   var STORAGE_KEY = 'sgb_career_v1';
+  var UI_STATE_KEY = STORAGE_KEY + '_ui';
 
   // 텍스트영역 입력마다 전체 상태(localStorage) 직렬화가 도는 것을 막기 위한 디바운스.
   function debounce(fn, wait) {
@@ -66,6 +67,26 @@
   var sourceLabel = '';
   var resultsData = null; // 분석 결과(§ analyzeAll 참고)
 
+  // UI 표시 상태(데이터 아님) — 별도 키에 저장, 기존 STORAGE_KEY 상태 스키마는 건드리지 않는다.
+  var uiState = SGB.core.loadState(UI_STATE_KEY) || {};
+  var studentsCollapsed = !!uiState.cardsCollapsed;
+  var onlyViolations = !!uiState.onlyViolations;
+  var onlyWithIssues = !!uiState.onlyWithIssues;
+
+  function saveUiState() {
+    SGB.core.saveState(UI_STATE_KEY, {
+      cardsCollapsed: studentsCollapsed,
+      onlyViolations: onlyViolations,
+      onlyWithIssues: onlyWithIssues
+    });
+  }
+
+  // 확정 위반만 보기(§P1) — grade가 있는 항목(규칙 판정)은 violation만 통과,
+  // grade가 없는 항목(바이트·글자수 초과)은 명백한 초과라 항상 통과시킨다.
+  function passesViolationFilter(it) {
+    return !onlyViolations || !it.grade || it.grade === 'violation';
+  }
+
   // ------------------------------------------------------------------
   // DOM 참조
   // ------------------------------------------------------------------
@@ -82,15 +103,23 @@
   var byteHintEl = $('byteHint');
   var sourceInfoEl = $('sourceInfo');
   var legendEl = $('legend');
+  var legendDetailsEl = $('legendDetails');
   var cardsContainerEl = $('cardsContainer');
+  var studentsToggleEl = $('studentsToggle');
+  var studentsToggleLabelEl = $('studentsToggleLabel');
   var addBtnEl = $('addBtn');
   var clearBtnEl = $('clearBtn');
   var analyzeBtnEl = $('analyzeBtn');
+  var analyzeBtnDefaultLabel = analyzeBtnEl.textContent;
+  var resultsHeadlineEl = $('resultsHeadline');
   var resultsSummaryEl = $('resultsSummary');
   var actionBarEl = $('actionBar');
   var actionBarLabelEl = $('actionBarLabel');
   var exportSummaryBtnEl = $('exportSummaryBtn');
   var copyIssuesBtnEl = $('copyIssuesBtn');
+  var resultsControlsEl = $('resultsControls');
+  var onlyViolationsToggleEl = $('onlyViolationsToggle');
+  var onlyIssuesToggleEl = $('onlyIssuesToggle');
   var resultsBodyEl = $('resultsBody');
 
   function getProfile() { return PROFILES[activityType] || PROFILES.club; }
@@ -142,18 +171,46 @@
   // ------------------------------------------------------------------
   // 학생 카드 (학생자료 편집)
   // ------------------------------------------------------------------
+  // subject.html 결과 빈 상태와 동일한 문서+체크 아이콘 계열로 통일(§P2 — 봉투 아이콘 지양).
   function emptyIllusHtml(labelText) {
     return (
       '<div class="illus illus-empty" role="img" aria-label="' + SGB.core.escapeHtml(labelText) + '">' +
         '<img src="./assets/img/empty-state.png" alt="" onerror="this.style.display=\'none\';this.closest(\'.illus\').classList.add(\'img-missing\')">' +
         '<div class="illus-fallback" aria-hidden="true">' +
-          '<svg class="illus-fallback-icon" viewBox="0 0 96 96" width="56" height="56" fill="none" aria-hidden="true">' +
-            '<rect x="16" y="24" width="64" height="48" rx="6" stroke="currentColor" stroke-width="3"/>' +
-            '<path d="M16 34 L48 54 L80 34" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' +
+          '<svg class="illus-fallback-icon" viewBox="0 0 96 96" width="64" height="64" fill="none" aria-hidden="true">' +
+            '<rect x="20" y="16" width="56" height="64" rx="6" fill="#FFFFFF" stroke="#4F46E5" stroke-width="3"/>' +
+            '<path d="M32 46 L44 58 L66 32" stroke="#4F46E5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' +
           '</svg>' +
         '</div>' +
       '</div>'
     );
+  }
+
+  // ------------------------------------------------------------------
+  // 학생자료 편집 영역 접기/펼치기(§P1) — 업로드로 채워지면 자동 접힘,
+  // 직접 추가로 작업 중일 땐 펼침 유지. 접힘 상태는 UI_STATE_KEY에 보존.
+  // ------------------------------------------------------------------
+  function updateStudentsToggleUI() {
+    studentsToggleEl.setAttribute('aria-expanded', studentsCollapsed ? 'false' : 'true');
+    cardsContainerEl.hidden = studentsCollapsed;
+    studentsToggleLabelEl.textContent = studentsCollapsed
+      ? ('학생 자료 ' + students.length + '명 — 펼쳐서 수정')
+      : '학생 자료';
+  }
+  function setStudentsCollapsed(collapsed) {
+    studentsCollapsed = collapsed;
+    updateStudentsToggleUI();
+    saveUiState();
+  }
+  studentsToggleEl.addEventListener('click', function () { setStudentsCollapsed(!studentsCollapsed); });
+
+  // ------------------------------------------------------------------
+  // 결과로 스크롤(§P0) — 점검 실행/업로드 완료 시 헤드라인 앵커로 이동.
+  // ------------------------------------------------------------------
+  function scrollToResults() {
+    if (resultsHeadlineEl && !resultsHeadlineEl.hidden && resultsHeadlineEl.scrollIntoView) {
+      resultsHeadlineEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function addStudent(no, name, text) {
@@ -176,6 +233,7 @@
         '<div class="empty-state">' + emptyIllusHtml('빈 학생 목록') +
           '<p>아직 학생이 없습니다. 위에서 엑셀을 올리거나 "+ 학생 직접 추가"를 눌러주세요.</p>' +
         '</div>';
+      updateStudentsToggleUI();
       return;
     }
 
@@ -226,6 +284,7 @@
     });
 
     students.forEach(function (s) { updateByteDisplay(s.id); });
+    updateStudentsToggleUI();
   }
 
   function updateByteDisplay(id) {
@@ -454,8 +513,10 @@
       });
 
       applyProfileUI();
+      setStudentsCollapsed(true); // 업로드로 학생자료가 채워지면 편집 목록은 자동으로 접는다
       renderCards();
       analyzeAll(); // 업로드 즉시 점검 결과 표시(내부에서 renderResults·saveState까지 처리)
+      scrollToResults();
 
       var prefix = '파일 ' + fileResults.length + '개';
       if (errors.length) prefix += ' (' + errors.join(', ') + ')';
@@ -498,8 +559,6 @@
       var over = overByte || overChar;
       if (over) overCount += 1;
 
-      var annotated = SGB.core.buildAnnotatedHtml(st.text, findings);
-
       var issueRowsForExport = [];
       var issueItems = [];
       if (overByte) {
@@ -513,7 +572,7 @@
       findings.forEach(function (f) {
         var excerpt = f.quote && f.quote.length > 40 ? f.quote.slice(0, 40) + '…' : (f.quote || '');
         var tag = RULE_TAGS[f.rule] || f.rule;
-        issueItems.push({ tag: tag, color: f.color, note: f.note, quote: excerpt });
+        issueItems.push({ tag: tag, color: f.color, note: f.note, quote: excerpt, grade: f.grade });
         issueRowsForExport.push('[' + tag + '] ' + excerpt + ' - ' + f.note);
       });
       totalIssues += issueItems.length;
@@ -521,7 +580,7 @@
       perStudent.push({
         id: st.id, no: st.no, name: st.name,
         chars: chars, bytes: bytes, over: over,
-        annotated: annotated, issues: issueItems
+        text: st.text, findings: findings, issues: issueItems
       });
 
       rows.push({
@@ -548,18 +607,60 @@
   // ------------------------------------------------------------------
   // 결과 렌더
   // ------------------------------------------------------------------
+  function issueItemHtml(it) {
+    return '<div class="issue-item"><span class="issue-tag ' + it.color + '">' + SGB.core.escapeHtml(it.tag) + '</span>' +
+      '<span class="issue-item__note">' + (it.quote ? '"' + SGB.core.escapeHtml(it.quote) + '" — ' : '') + SGB.core.escapeHtml(it.note) + '</span></div>';
+  }
+
+  // 같은 태그의 다수 발생을 1행으로 접는다(§P1) — 확정 위반만 보기 필터도 여기서 적용.
+  function buildIssuesHtml(issues) {
+    var filtered = issues.filter(passesViolationFilter);
+    if (!filtered.length) return '<p class="issue-clean">발견된 문제 표현 없음</p>';
+    var groups = SGB.core.groupBy(filtered, function (it) { return it.tag; });
+    var html = groups.map(function (g, gi) {
+      if (g.items.length === 1) return issueItemHtml(g.items[0]);
+      var first = g.items[0];
+      var uid = 'ig-' + Math.random().toString(36).slice(2, 8) + '-' + gi;
+      return '' +
+        '<div class="issue-group">' +
+          '<button type="button" class="issue-item issue-group__toggle" data-role="issue-group-toggle" data-target="' + uid + '" aria-expanded="false">' +
+            '<span class="issue-tag ' + first.color + '">' + SGB.core.escapeHtml(first.tag) + '</span>' +
+            '<span class="issue-item__note">' + (first.quote ? '\'' + SGB.core.escapeHtml(first.quote) + '\' 외 ' : '') + (g.items.length - 1) + '건</span>' +
+            '<svg class="issue-group__caret" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9 L12 15 L18 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          '</button>' +
+          '<div class="issue-group__body" id="' + uid + '" hidden>' + g.items.map(issueItemHtml).join('') + '</div>' +
+        '</div>';
+    }).join('');
+    return '<div class="issue-list">' + html + '</div>';
+  }
+
+  function studentVisibleIssueCount(st) {
+    return st.issues.filter(passesViolationFilter).length;
+  }
+
   function renderResults() {
     if (!resultsData || !resultsData.students.length) {
       actionBarEl.hidden = true;
-      resultsSummaryEl.innerHTML =
-        '<div class="empty-state">' + emptyIllusHtml('점검 결과 없음') +
-          '<p>먼저 학생 자료를 추가하고 "전체 점검하기"를 실행하세요.</p>' +
-        '</div>';
+      resultsControlsEl.hidden = true;
+      legendDetailsEl.hidden = true;
+      resultsHeadlineEl.hidden = true;
+      // 학생이 아예 없으면 편집 영역의 빈 메시지와 중복되므로 결과 빈 상태는 숨긴다(§P2 단일 빈상태).
+      if (students.length) {
+        resultsSummaryEl.innerHTML =
+          '<div class="empty-state">' + emptyIllusHtml('점검 결과 없음') +
+            '<p>먼저 "전체 점검하기"를 실행하세요.</p>' +
+          '</div>';
+      } else {
+        resultsSummaryEl.innerHTML = '';
+      }
       resultsBodyEl.innerHTML = '';
       return;
     }
 
     var s = resultsData.summary;
+    resultsHeadlineEl.hidden = false;
+    resultsHeadlineEl.textContent = '학생 ' + s.count + '명 · 이슈 ' + s.issues + '건 발견';
+
     resultsSummaryEl.innerHTML =
       '<div class="stats-row">' +
         '<div class="stat"><span class="stat-value">' + s.count + '</span><span class="stat-label">학생</span></div>' +
@@ -568,15 +669,29 @@
       '</div>';
 
     actionBarEl.hidden = false;
+    resultsControlsEl.hidden = false;
+    legendDetailsEl.hidden = false;
     actionBarLabelEl.textContent = resultsData.profileLabel + ' · 학생 ' + s.count + '명 · 이슈 ' + s.issues + '건';
 
-    var studentsHtml = resultsData.students.map(function (st) {
-      var issuesHtml = st.issues.length
-        ? '<div class="issue-list">' + st.issues.map(function (iss) {
-            return '<div class="issue-item"><span class="issue-tag ' + iss.color + '">' + SGB.core.escapeHtml(iss.tag) + '</span>' +
-              '<span class="issue-item__note">' + (iss.quote ? '"' + SGB.core.escapeHtml(iss.quote) + '" — ' : '') + SGB.core.escapeHtml(iss.note) + '</span></div>';
-          }).join('') + '</div>'
-        : '<p class="issue-clean">발견된 문제 표현 없음</p>';
+    var visibleStudents = onlyWithIssues
+      ? resultsData.students.filter(function (st) { return studentVisibleIssueCount(st) > 0; })
+      : resultsData.students;
+    var countBadge = (onlyWithIssues && visibleStudents.length !== resultsData.students.length)
+      ? (visibleStudents.length + '/' + resultsData.students.length + '명 표시')
+      : (s.count + '명');
+    var visibleIssuesTotal = resultsData.students.reduce(function (sum, st) { return sum + studentVisibleIssueCount(st); }, 0);
+
+    var studentsHtml = visibleStudents.map(function (st) {
+      // st.findings/st.text는 구 버전 캐시(localStorage)엔 없을 수 있다 — 있으면 재필터링,
+      // 없으면 예전에 저장된 annotated HTML로 안전하게 대체(크래시 방지).
+      var annotated;
+      if (st.findings) {
+        var visibleFindings = onlyViolations ? st.findings.filter(function (f) { return f.grade === 'violation'; }) : st.findings;
+        annotated = SGB.core.buildAnnotatedHtml(st.text, visibleFindings);
+      } else {
+        annotated = st.annotated || '';
+      }
+      var issuesHtml = buildIssuesHtml(st.issues || []);
 
       return (
         '<div class="student-card">' +
@@ -585,7 +700,7 @@
             (st.no ? '<span class="student-card__no">' + SGB.core.escapeHtml(st.no) + '</span>' : '') + '</span>' +
             '<span class="student-card__gauge-wrap"><span class="student-card__gauge-label">' + st.chars + '자 · ' + st.bytes + ' / ' + resultsData.limit + 'B' + (st.over ? ' · 초과' : '') + '</span></span>' +
           '</div>' +
-          '<div class="annotated">' + (st.annotated || '<span class="issue-item__note">내용 없음</span>') + '</div>' +
+          '<div class="annotated">' + (annotated || '<span class="issue-item__note">내용 없음</span>') + '</div>' +
           issuesHtml +
         '</div>'
       );
@@ -594,8 +709,8 @@
     resultsBodyEl.innerHTML =
       '<div class="subject-section">' +
         '<div class="subject-section-header">' +
-          '<h2>' + SGB.core.escapeHtml(resultsData.profileLabel) + '<span class="badge">' + s.count + '명</span></h2>' +
-          '<span class="subject-section-meta">이슈 ' + s.issues + '건 · 초과 ' + s.over + '명</span>' +
+          '<h2>' + SGB.core.escapeHtml(resultsData.profileLabel) + '<span class="badge">' + SGB.core.escapeHtml(countBadge) + '</span></h2>' +
+          '<span class="subject-section-meta">이슈 ' + visibleIssuesTotal + '건 · 초과 ' + s.over + '명</span>' +
         '</div>' +
         '<div class="subject-section-students">' + studentsHtml + '</div>' +
       '</div>';
@@ -660,17 +775,55 @@
     saveState();
   });
 
-  addBtnEl.addEventListener('click', function () { addStudent('', '', ''); });
+  addBtnEl.addEventListener('click', function () {
+    setStudentsCollapsed(false); // 직접 추가로 작업 중일 땐 펼침 유지
+    addStudent('', '', '');
+  });
   clearBtnEl.addEventListener('click', function () {
+    if (!window.confirm('학생자료와 점검 결과를 모두 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
     students = [];
     seq = 0;
     resultsData = null;
+    setStudentsCollapsed(false);
     renderCards();
     renderResults();
     try { window.localStorage.removeItem(STORAGE_KEY); } catch (e) { /* noop */ }
   });
 
-  analyzeBtnEl.addEventListener('click', analyzeAll);
+  // 전체 점검하기(§P0) — 클릭 즉시 "분석 중…" 표시 후 다음 프레임에 실행해
+  // 동기 분석으로 인한 UI 블록 이전에 버튼 상태 변경이 먼저 페인트되게 한다.
+  analyzeBtnEl.addEventListener('click', function () {
+    analyzeBtnEl.disabled = true;
+    analyzeBtnEl.textContent = '분석 중…';
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        analyzeAll();
+        analyzeBtnEl.disabled = false;
+        analyzeBtnEl.textContent = analyzeBtnDefaultLabel;
+        scrollToResults();
+      }, 0);
+    });
+  });
+
+  onlyViolationsToggleEl.addEventListener('change', function () {
+    onlyViolations = onlyViolationsToggleEl.checked;
+    renderResults();
+    saveUiState();
+  });
+  onlyIssuesToggleEl.addEventListener('change', function () {
+    onlyWithIssues = onlyIssuesToggleEl.checked;
+    renderResults();
+    saveUiState();
+  });
+
+  resultsBodyEl.addEventListener('click', function (e) {
+    var groupToggle = e.target.closest('[data-role="issue-group-toggle"]');
+    if (!groupToggle) return;
+    var body = document.getElementById(groupToggle.dataset.target);
+    var expanded = groupToggle.getAttribute('aria-expanded') === 'true';
+    groupToggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+    if (body) body.hidden = expanded;
+  });
 
   exportSummaryBtnEl.addEventListener('click', function () {
     if (!resultsData || !resultsData.rows.length) { SGB.core.toast('먼저 점검을 실행하세요.'); return; }
@@ -701,4 +854,7 @@
   renderCards();
   renderResults();
   loadState();
+  onlyViolationsToggleEl.checked = onlyViolations;
+  onlyIssuesToggleEl.checked = onlyWithIssues;
+  updateStudentsToggleUI();
 })();

@@ -93,7 +93,10 @@
   <section class="students-section">
     <div class="container">
       <div class="section-head-row">
-        <h2 class="section-title-sm">학생 자료</h2>
+        <button type="button" class="section-toggle" id="studentsToggle" aria-expanded="true" aria-controls="cardsContainer">
+          <span class="section-title-sm" id="studentsToggleLabel">학생 자료</span>
+          <svg class="section-toggle__caret" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9 L12 15 L18 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
         <div class="students-actions">
           <button type="button" class="btn btn-ghost" id="addBtn">+ 학생 직접 추가</button>
           <button type="button" class="btn btn-ghost" id="clearBtn">전체 지우기</button>
@@ -101,26 +104,39 @@
         </div>
       </div>
 
-      <div class="legend" id="legend"></div>
-
       <div id="cardsContainer"></div>
     </div>
   </section>
 
   <section class="results-section" id="resultsSection">
+    <div class="container">
+      <h2 class="results-headline" id="resultsHeadline" tabindex="-1" hidden></h2>
+    </div>
     <div class="container results-summary" id="resultsSummary"></div>
 
     <div class="action-bar" id="actionBar" hidden>
       <div class="container action-bar__row">
         <span class="action-bar__label" id="actionBarLabel"></span>
         <div class="action-bar__buttons">
-          <button type="button" class="btn btn-primary" id="exportSummaryBtn">전체 요약 xlsx</button>
-          <button type="button" class="btn btn-ghost" id="copyIssuesBtn">이슈만 복사</button>
+          <button type="button" class="btn btn-primary" id="exportSummaryBtn"><span class="btn-label-full">전체 요약 xlsx</span><span class="btn-label-short">요약</span></button>
+          <button type="button" class="btn btn-ghost" id="copyIssuesBtn"><span class="btn-label-full">이슈만 복사</span><span class="btn-label-short">복사</span></button>
         </div>
       </div>
     </div>
 
     <div class="container">
+      <div class="results-controls" id="resultsControls" hidden>
+        <div class="results-toggles" id="resultsToggles">
+          <label class="check-toggle"><input type="checkbox" id="onlyViolationsToggle"> 확정 위반만 보기</label>
+          <label class="check-toggle"><input type="checkbox" id="onlyIssuesToggle"> 이슈 있는 학생만</label>
+        </div>
+      </div>
+
+      <details class="legend-details" id="legendDetails" hidden>
+        <summary class="legend-details__summary">범례 보기</summary>
+        <div class="legend" id="legend"></div>
+      </details>
+
       <div id="resultsBody"></div>
     </div>
   </section>
@@ -130,6 +146,7 @@
 <footer class="site-footer">
   <div class="container site-footer__inner">
     <p class="site-footer__credit">이대형 · Made with Claude · <a href="mailto:riedel@e-mrim.hs.kr">riedel@e-mrim.hs.kr</a></p>
+    <p class="site-footer__credit">도움주신 분 · 송내고등학교 조경옥 선생님</p>
     <p class="site-footer__privacy">학생 데이터는 브라우저 밖으로 나가지 않습니다</p>
   </div>
 </footer>

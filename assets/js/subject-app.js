@@ -8,8 +8,46 @@
   'use strict';
 
   var STORAGE_KEY = 'sgb_subject_v1';
+  var UI_STATE_KEY = STORAGE_KEY + '_ui';
   var escapeHtml = SGB.core.escapeHtml;
   var escapeAttr = SGB.core.escapeHtml;
+
+  // ------------------------------------------------------------------
+  // 규칙코드(R1~R10·F1·F2·C/U/N/S/M 확장) → 표시용 서술형 한글 라벨.
+  // 내부 코드(f.rule)는 그대로 유지(판정·테스트 불변) — 여기서 화면·내보내기용으로만 매핑.
+  // ------------------------------------------------------------------
+  var RULE_LABELS = {
+    R1알파벳: '영문·외국어 표기',
+    R2특수기호: '특수기호',
+    R3과거시제: '과거형 표현',
+    R4내면심리: '내면·심리 서술',
+    R5역량어단독: '근거 없는 역량어',
+    R6지칭어: '인물 지칭',
+    R7기재금지: '기재불가 항목',
+    R8무관내용: '성취기준 무관',
+    R9줄바꿈도서명: '줄바꿈·따옴표 표기',
+    R10분량: '분량 초과',
+    F1외국어확인: '원어 표기 (확인 필요)',
+    F2파일형식확인: '파일 형식 (확인 필요)',
+    C1진로전공: '진로·전공 언급 (확인 필요)',
+    C2학과직업: '학과·직업명 언급 (확인 필요)',
+    U1대학명: '대학명 언급',
+    U2기관인증: '교외 기관·인증시험 언급 (확인 필요)',
+    U3부모직업: '부모 직업 암시 (기재불가)',
+    N1기재유의어: '기재 유의어',
+    N2괄호영문: '괄호 안 영문 표기',
+    S1추측표현: '추측성 표현',
+    S2미사여구: '미사여구',
+    S3패턴반복: '문장 패턴 반복',
+    S4템플릿반복: '상투적 템플릿 반복',
+    S5종결혼용: '문장 종결 혼용',
+    S6띄어쓰기: '띄어쓰기·표기 오류',
+    S7과정부족: '과정·역할 서술 부족',
+    S8문장중복: '문장 중복',
+    M1성취기준코드: '성취기준 코드 직접 인용',
+    M2수식기호: '수식 기호 직접 사용'
+  };
+  function ruleLabel(code) { return RULE_LABELS[code] || code; }
 
   // 텍스트영역 입력마다 전체 상태(localStorage) 직렬화가 도는 것을 막기 위한 디바운스.
   function debounce(fn, wait) {
@@ -35,6 +73,22 @@
   var activeFilter = null; // null = 전체, 아니면 과목명
   var gaugeQueue = []; // 결과 렌더 시 innerHTML 삽입 후 채울 게이지 목록
 
+  // UI 표시 상태(데이터 아님) — 별도 키에 저장, 기존 STORAGE_KEY 상태 스키마는 건드리지 않는다.
+  var uiState = SGB.core.loadState(UI_STATE_KEY) || {};
+  var studentsCollapsed = !!uiState.cardsCollapsed;
+  var onlyViolations = !!uiState.onlyViolations;
+  var onlyWithIssues = !!uiState.onlyWithIssues;
+  if (uiState.view === 'student' || uiState.view === 'subject') currentView = uiState.view;
+
+  function saveUiState() {
+    SGB.core.saveState(UI_STATE_KEY, {
+      cardsCollapsed: studentsCollapsed,
+      onlyViolations: onlyViolations,
+      onlyWithIssues: onlyWithIssues,
+      view: currentView
+    });
+  }
+
   // ------------------------------------------------------------------
   // DOM 참조
   // ------------------------------------------------------------------
@@ -50,9 +104,14 @@
   var addBtnEl = document.getElementById('addBtn');
   var clearBtnEl = document.getElementById('clearBtn');
   var analyzeBtnEl = document.getElementById('analyzeBtn');
+  var analyzeBtnDefaultLabel = analyzeBtnEl.textContent;
   var legendEl = document.getElementById('legend');
+  var legendDetailsEl = document.getElementById('legendDetails');
   var cardsContainerEl = document.getElementById('cardsContainer');
+  var studentsToggleEl = document.getElementById('studentsToggle');
+  var studentsToggleLabelEl = document.getElementById('studentsToggleLabel');
   var resultsSectionEl = document.getElementById('resultsSection');
+  var resultsHeadlineEl = document.getElementById('resultsHeadline');
   var resultsSummaryEl = document.getElementById('resultsSummary');
   var actionBarEl = document.getElementById('actionBar');
   var actionBarLabelEl = document.getElementById('actionBarLabel');
@@ -62,6 +121,8 @@
   var resultsControlsEl = document.getElementById('resultsControls');
   var viewToggleEl = document.getElementById('viewToggle');
   var subjectFiltersEl = document.getElementById('subjectFilters');
+  var onlyViolationsToggleEl = document.getElementById('onlyViolationsToggle');
+  var onlyIssuesToggleEl = document.getElementById('onlyIssuesToggle');
   var resultsBodyEl = document.getElementById('resultsBody');
   var emptyStateEl = document.getElementById('emptyState');
 
@@ -88,6 +149,33 @@
     legendEl.innerHTML = LEGEND.map(function (row) {
       return '<span class="legend-item"><span class="legend-swatch ' + row[1] + '"></span>' + escapeHtml(row[0]) + '</span>';
     }).join('');
+  }
+
+  // ------------------------------------------------------------------
+  // 학생자료 편집 영역 접기/펼치기(§P1) — 업로드로 채워지면 자동 접힘,
+  // 직접 추가로 작업 중일 땐 펼침 유지. 접힘 상태는 UI_STATE_KEY에 보존.
+  // ------------------------------------------------------------------
+  function updateStudentsToggleUI() {
+    studentsToggleEl.setAttribute('aria-expanded', studentsCollapsed ? 'false' : 'true');
+    cardsContainerEl.hidden = studentsCollapsed;
+    studentsToggleLabelEl.textContent = studentsCollapsed
+      ? ('학생자료 ' + students.length + '명 — 펼쳐서 수정')
+      : '학생자료';
+  }
+  function setStudentsCollapsed(collapsed) {
+    studentsCollapsed = collapsed;
+    updateStudentsToggleUI();
+    saveUiState();
+  }
+  studentsToggleEl.addEventListener('click', function () { setStudentsCollapsed(!studentsCollapsed); });
+
+  // ------------------------------------------------------------------
+  // 결과로 스크롤(§P0) — 점검 실행/업로드 완료 시 헤드라인 앵커로 이동.
+  // ------------------------------------------------------------------
+  function scrollToResults() {
+    if (resultsHeadlineEl && !resultsHeadlineEl.hidden && resultsHeadlineEl.scrollIntoView) {
+      resultsHeadlineEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   // ------------------------------------------------------------------
@@ -122,6 +210,7 @@
   function renderCards() {
     if (!students.length) {
       cardsContainerEl.innerHTML = '<div class="empty-state"><p>아직 학생이 없습니다. 위에서 엑셀을 불러오거나 "+ 학생 직접 추가"를 눌러주세요.</p></div>';
+      updateStudentsToggleUI();
       return;
     }
     cardsContainerEl.innerHTML = students.map(function (st) {
@@ -158,6 +247,7 @@
     students.forEach(function (st) {
       st.entries.forEach(function (e, idx) { updateEntryByteDisplay(st.id, idx); });
     });
+    updateStudentsToggleUI();
   }
 
   function updateEntryByteDisplay(studentId, idx) {
@@ -244,8 +334,10 @@
     uploadStatusEl.classList.add('ok');
     uploadStatusEl.classList.remove('err');
     if (totalReplaced > 0) SGB.core.toast('중복 과목 파일 감지 — 최신 내용으로 교체됨 (' + totalReplaced + '건)');
+    setStudentsCollapsed(true); // 업로드로 학생자료가 채워지면 편집 목록은 자동으로 접는다
     analyzeAll();
     persist();
+    scrollToResults();
   }
 
   function importFromWorkbook(workbook, fileName, sheetName) {
@@ -379,24 +471,55 @@
     return '<div class="stat"><span class="stat-value">' + value + '</span><span class="stat-label">' + escapeHtml(label) + '</span></div>';
   }
 
-  function buildIssuesHtml(r) {
-    var items = '';
+  // 확정 위반만 보기(§P1) — grade==='violation'만 남긴다. 바이트 초과는 findings가 아니라
+  // r.over 별도 플래그라 이 필터 대상이 아니다(항상 표시 — 명백한 초과라 숨길 이유가 없음).
+  function filteredFindingsOf(r) {
+    return onlyViolations ? r.findings.filter(function (f) { return f.grade === 'violation'; }) : r.findings;
+  }
+  function rowVisibleCount(r) {
+    return filteredFindingsOf(r).length + (r.over ? 1 : 0);
+  }
+
+  function issueItemHtml(it) {
+    return '<div class="issue-item"><span class="issue-tag ' + escapeAttr(it.color) + '">' + escapeHtml(it.tag) + '</span>' +
+      '<span class="issue-item__note">' + (it.quote ? '"' + escapeHtml(it.quote) + '" — ' : '') + escapeHtml(it.note || '') + '</span></div>';
+  }
+
+  // 같은 규칙(태그)의 다수 발생을 1행으로 접어서 목록 밀도를 낮춘다(§P1).
+  // 하이라이트 mark는 그대로 유지되고(별도 buildAnnotatedHtml 경로), 여기서는 목록만 압축.
+  function buildIssuesHtml(r, findings) {
+    var items = [];
     if (r.over) {
-      items += '<div class="issue-item"><span class="issue-tag m-red">바이트 초과</span>' +
-        '<span class="issue-item__note">' + r.chars + '자 · ' + r.bytes + '/' + getByteLimit() + '바이트</span></div>';
+      items.push({ tag: '바이트 초과', color: 'm-red', note: r.chars + '자 · ' + r.bytes + '/' + getByteLimit() + '바이트', quote: '' });
     }
-    r.findings.forEach(function (f) {
+    findings.forEach(function (f) {
       var quote = f.quote || '';
       var excerpt = quote.length > 40 ? quote.slice(0, 40) + '…' : quote;
-      items += '<div class="issue-item"><span class="issue-tag ' + escapeAttr(f.color || 'm-slate') + '">' + escapeHtml(f.rule) + '</span>' +
-        '<span class="issue-item__note">' + (excerpt ? '"' + escapeHtml(excerpt) + '" — ' : '') + escapeHtml(f.note || '') + '</span></div>';
+      items.push({ tag: ruleLabel(f.rule), color: f.color || 'm-slate', note: f.note || '', quote: excerpt });
     });
-    if (!items) return '<p class="issue-clean">발견된 문제 표현 없음</p>';
-    return '<div class="issue-list">' + items + '</div>';
+    if (!items.length) return '<p class="issue-clean">발견된 문제 표현 없음</p>';
+
+    var groups = SGB.core.groupBy(items, function (it) { return it.tag; });
+    var html = groups.map(function (g, gi) {
+      if (g.items.length === 1) return issueItemHtml(g.items[0]);
+      var first = g.items[0];
+      var uid = 'ig-' + Math.random().toString(36).slice(2, 8) + '-' + gi;
+      return '' +
+        '<div class="issue-group">' +
+          '<button type="button" class="issue-item issue-group__toggle" data-role="issue-group-toggle" data-target="' + uid + '" aria-expanded="false">' +
+            '<span class="issue-tag ' + escapeAttr(first.color) + '">' + escapeHtml(first.tag) + '</span>' +
+            '<span class="issue-item__note">' + (first.quote ? '\'' + escapeHtml(first.quote) + '\' 외 ' : '') + (g.items.length - 1) + '건</span>' +
+            '<svg class="issue-group__caret" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9 L12 15 L18 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          '</button>' +
+          '<div class="issue-group__body" id="' + uid + '" hidden>' + g.items.map(issueItemHtml).join('') + '</div>' +
+        '</div>';
+    }).join('');
+    return '<div class="issue-list">' + html + '</div>';
   }
 
   function renderStudentResultCard(r) {
-    var annotated = SGB.core.buildAnnotatedHtml(r.text, r.findings);
+    var findings = filteredFindingsOf(r);
+    var annotated = SGB.core.buildAnnotatedHtml(r.text, findings);
     var byteLimit = getByteLimit();
     var gaugeId = 'result-gauge-' + (gaugeQueue.length + 1) + '-' + Math.random().toString(36).slice(2, 7);
     gaugeQueue.push({ id: gaugeId, chars: r.chars, bytes: r.bytes, limit: byteLimit });
@@ -411,12 +534,12 @@
           '</div>' +
         '</div>' +
         '<div class="annotated">' + (annotated || '<span style="color:var(--ink-soft);">내용 없음</span>') + '</div>' +
-        buildIssuesHtml(r) +
+        buildIssuesHtml(r, findings) +
       '</article>';
   }
 
   function issueCountOf(rows) {
-    return rows.reduce(function (s, r) { return s + r.findings.length + (r.over ? 1 : 0); }, 0);
+    return rows.reduce(function (s, r) { return s + rowVisibleCount(r); }, 0);
   }
 
   function renderSubjectView(groups) {
@@ -424,12 +547,16 @@
     if (!visible.length) return '';
     return visible.map(function (g) {
       var repairedBadge = g.repaired ? '<span class="badge">표기 보정됨</span>' : '';
-      var studentsHtml = g.rows.map(renderStudentResultCard).join('');
+      var shownRows = onlyWithIssues ? g.rows.filter(function (r) { return rowVisibleCount(r) > 0; }) : g.rows;
+      var countBadge = (onlyWithIssues && shownRows.length !== g.rows.length)
+        ? (shownRows.length + '/' + g.rows.length + '명 표시')
+        : (g.rows.length + '명');
+      var studentsHtml = shownRows.map(renderStudentResultCard).join('');
       return '' +
         '<section class="subject-section" data-subject="' + escapeAttr(g.subject) + '">' +
           '<div class="subject-section-header">' +
             '<div><h2>' + escapeHtml(g.subject) + '</h2>' + repairedBadge +
-              '<span class="badge">' + g.rows.length + '명</span>' +
+              '<span class="badge">' + escapeHtml(countBadge) + '</span>' +
               '<span class="badge">이슈 ' + issueCountOf(g.rows) + '건</span></div>' +
             '<div class="subject-section-header__actions">' +
               '<button type="button" class="btn btn-ghost" data-export-subject="' + escapeAttr(g.subject) + '">' + escapeHtml(g.subject) + '_점검결과.xlsx</button>' +
@@ -445,6 +572,7 @@
     var byStudent = {};
     visibleGroups.forEach(function (g) {
       g.rows.forEach(function (r) {
+        if (onlyWithIssues && rowVisibleCount(r) === 0) return;
         var key = r.student.id;
         if (!byStudent[key]) byStudent[key] = { student: r.student, items: [] };
         byStudent[key].items.push({ subject: g.subject, row: r });
@@ -478,9 +606,13 @@
       resultsBodyEl.innerHTML = '';
       resultsSummaryEl.innerHTML = '';
       subjectFiltersEl.innerHTML = '';
-      emptyStateEl.hidden = false;
+      resultsHeadlineEl.hidden = true;
+      // 학생이 아예 없으면 편집 영역의 빈 메시지와 중복되므로 결과 빈 상태는 숨긴다(§P2 단일 빈상태).
+      // 학생은 있지만 분석 결과가 비어 있는 경우에만 결과 영역의 통합 빈 상태를 보여준다.
+      emptyStateEl.hidden = students.length === 0;
       actionBarEl.hidden = true;
       resultsControlsEl.hidden = true;
+      legendDetailsEl.hidden = true;
       return;
     }
 
@@ -497,14 +629,19 @@
     emptyStateEl.hidden = true;
     actionBarEl.hidden = false;
     resultsControlsEl.hidden = false;
+    legendDetailsEl.hidden = false;
+
+    var studentCount = Object.keys(studentIds).length;
+    resultsHeadlineEl.hidden = false;
+    resultsHeadlineEl.textContent = '학생 ' + studentCount + '명 · 이슈 ' + totalIssues + '건 발견';
 
     resultsSummaryEl.classList.add('stats-row');
     resultsSummaryEl.innerHTML =
-      statHtml(Object.keys(studentIds).length, '학생') +
+      statHtml(studentCount, '학생') +
       statHtml(lastResults.groups.length, '과목') +
       statHtml(totalIssues, '이슈') +
       statHtml(overCount, '바이트 초과');
-    actionBarLabelEl.textContent = Object.keys(studentIds).length + '명 · 이슈 ' + totalIssues + '건';
+    actionBarLabelEl.textContent = studentCount + '명 · 이슈 ' + totalIssues + '건';
 
     renderFilterChips(lastResults.groups);
 
@@ -526,9 +663,29 @@
       b.setAttribute('aria-selected', active ? 'true' : 'false');
     });
     renderResults();
+    saveUiState();
+  });
+
+  onlyViolationsToggleEl.addEventListener('change', function () {
+    onlyViolations = onlyViolationsToggleEl.checked;
+    renderResults();
+    saveUiState();
+  });
+  onlyIssuesToggleEl.addEventListener('change', function () {
+    onlyWithIssues = onlyIssuesToggleEl.checked;
+    renderResults();
+    saveUiState();
   });
 
   resultsSectionEl.addEventListener('click', function (e) {
+    var groupToggle = e.target.closest('[data-role="issue-group-toggle"]');
+    if (groupToggle) {
+      var body = document.getElementById(groupToggle.dataset.target);
+      var expanded = groupToggle.getAttribute('aria-expanded') === 'true';
+      groupToggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      if (body) body.hidden = expanded;
+      return;
+    }
     var filterBtn = e.target.closest('[data-filter]');
     if (filterBtn) {
       activeFilter = filterBtn.dataset.filter || null;
@@ -548,7 +705,7 @@
   // ------------------------------------------------------------------
   function rowToExportRecord(r, subject) {
     var issuesText = r.findings.map(function (f) {
-      return '[' + f.rule + '] ' + (f.quote ? '"' + f.quote + '" ' : '') + '- ' + (f.note || '');
+      return '[' + ruleLabel(f.rule) + '] ' + (f.quote ? '"' + f.quote + '" ' : '') + '- ' + (f.note || '');
     }).join(' | ');
     if (r.over) issuesText = ('바이트 초과 (' + r.chars + '자, ' + r.bytes + '/' + getByteLimit() + ')') + (issuesText ? ' | ' + issuesText : '');
     return {
@@ -592,7 +749,7 @@
     lines.push(indent + '- ' + name + ' (' + issueCount + '건)');
     if (r.over) lines.push(indent + '  · 바이트 초과: ' + r.chars + '자/' + r.bytes + 'B');
     r.findings.forEach(function (f) {
-      lines.push(indent + '  · [' + f.rule + '] ' + (f.quote ? '"' + f.quote + '" ' : '') + '- ' + (f.note || ''));
+      lines.push(indent + '  · [' + ruleLabel(f.rule) + '] ' + (f.quote ? '"' + f.quote + '" ' : '') + '- ' + (f.note || ''));
     });
   }
 
@@ -663,20 +820,47 @@
   profileSelectEl.addEventListener('change', function () {
     if (lastResults) analyzeAll(); else persist();
   });
-  addBtnEl.addEventListener('click', function () { addStudent('', ''); });
+  addBtnEl.addEventListener('click', function () {
+    setStudentsCollapsed(false); // 직접 추가로 작업 중일 땐 펼침 유지
+    addStudent('', '');
+  });
   clearBtnEl.addEventListener('click', function () {
+    if (!window.confirm('학생자료와 점검 결과를 모두 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
     students = [];
     repairedSubjects = {};
     subjectOrder = [];
     lastResults = null;
     activeFilter = null;
+    setStudentsCollapsed(false);
     renderCards();
     renderResults();
     try { window.localStorage.removeItem(STORAGE_KEY); } catch (e) { /* noop */ }
   });
-  analyzeBtnEl.addEventListener('click', analyzeAll);
+
+  // 전체 점검하기(§P0) — 클릭 즉시 "분석 중…" 표시 후 다음 프레임에 실행해
+  // 동기 분석으로 인한 UI 블록 이전에 버튼 상태 변경이 먼저 페인트되게 한다.
+  analyzeBtnEl.addEventListener('click', function () {
+    analyzeBtnEl.disabled = true;
+    analyzeBtnEl.textContent = '분석 중…';
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        analyzeAll();
+        analyzeBtnEl.disabled = false;
+        analyzeBtnEl.textContent = analyzeBtnDefaultLabel;
+        scrollToResults();
+      }, 0);
+    });
+  });
 
   renderLegend();
   renderCards();
   restore();
+  onlyViolationsToggleEl.checked = onlyViolations;
+  onlyIssuesToggleEl.checked = onlyWithIssues;
+  viewToggleEl.querySelectorAll('.toggle-btn').forEach(function (b) {
+    var active = b.dataset.view === currentView;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  updateStudentsToggleUI();
 })();
