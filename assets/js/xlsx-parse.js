@@ -54,9 +54,18 @@
   // ====================================================================
   // §3.1 포맷 감지
   // ====================================================================
+  // NEIS 업로드 표준 양식(그리드) 헤더에만 등장하는 열 이름들 — 인쇄덤프 헤더에는 없다.
+  // 표준 양식도 '과목'+'성명'을 함께 가지므로(학년도/…/과목/과목코드/반/번호/성명/…),
+  // 이 마커가 하나라도 있으면 인쇄덤프 헤더가 아니라 표준 그리드 헤더다.
+  var STD_GRID_ONLY_MARKERS = ['반/번호', '학년도', '학생개인번호', '과목코드'];
+
   function isPrintDumpHeaderRow(row) {
     var stripped = (row || []).map(normStripAll);
-    return stripped.indexOf('과목') !== -1 && stripped.indexOf('성명') !== -1;
+    if (stripped.indexOf('과목') === -1 || stripped.indexOf('성명') === -1) return false;
+    for (var i = 0; i < STD_GRID_ONLY_MARKERS.length; i++) {
+      if (stripped.indexOf(STD_GRID_ONLY_MARKERS[i]) !== -1) return false;
+    }
+    return true;
   }
 
   function detectFormat(rows) {
@@ -275,27 +284,30 @@
       var textIdx = stdFindTextCol(cells);
       if (nameIdx === -1 || textIdx === -1) continue;
 
+      // NEIS 표준 양식의 '과목' 열(정확 일치만 — '과목코드'는 제외). 없으면 -1 → 파일명 유래 과목 사용
+      var subjectIdx = cells.indexOf('과목');
+
       var slashIdx = cells.indexOf('반/번호');
       if (slashIdx !== -1) {
-        return { headerRowIndex: r, noMode: 'slash', noIdx: slashIdx, nameIdx: nameIdx, textIdx: textIdx };
+        return { headerRowIndex: r, noMode: 'slash', noIdx: slashIdx, nameIdx: nameIdx, textIdx: textIdx, subjectIdx: subjectIdx };
       }
 
       var banIdx = cells.indexOf('반');
       var beonIdx = cells.indexOf('번호');
       if (banIdx !== -1 && beonIdx !== -1 && banIdx !== beonIdx) {
-        return { headerRowIndex: r, noMode: 'ban_beon', banIdx: banIdx, beonIdx: beonIdx, nameIdx: nameIdx, textIdx: textIdx };
+        return { headerRowIndex: r, noMode: 'ban_beon', banIdx: banIdx, beonIdx: beonIdx, nameIdx: nameIdx, textIdx: textIdx, subjectIdx: subjectIdx };
       }
 
       var hakbunIdx = stdFindCol(cells, ['학번', '출석번호', '연번']);
       if (hakbunIdx !== -1) {
-        return { headerRowIndex: r, noMode: 'hakbun', noIdx: hakbunIdx, nameIdx: nameIdx, textIdx: textIdx };
+        return { headerRowIndex: r, noMode: 'hakbun', noIdx: hakbunIdx, nameIdx: nameIdx, textIdx: textIdx, subjectIdx: subjectIdx };
       }
 
       if (beonIdx !== -1) {
-        return { headerRowIndex: r, noMode: 'beon', noIdx: beonIdx, nameIdx: nameIdx, textIdx: textIdx };
+        return { headerRowIndex: r, noMode: 'beon', noIdx: beonIdx, nameIdx: nameIdx, textIdx: textIdx, subjectIdx: subjectIdx };
       }
 
-      return { headerRowIndex: r, noMode: 'none', nameIdx: nameIdx, textIdx: textIdx };
+      return { headerRowIndex: r, noMode: 'none', nameIdx: nameIdx, textIdx: textIdx, subjectIdx: subjectIdx };
     }
     return null;
   }
@@ -352,9 +364,11 @@
     if (!colInfo) colInfo = findColumnIndices(rows) || guessColumnIndices(rows);
     if (!colInfo) return [];
     var nameIdx = colInfo.nameIdx, textIdx = colInfo.textIdx;
+    var subjectIdx = colInfo.subjectIdx != null ? colInfo.subjectIdx : -1;
 
     var result = [];
     var current = null;
+    var currentSubject = ''; // '과목' 열 forward-fill(병합셀·빈 셀 대비)
     var startRow = colInfo.guessed ? colInfo.headerRowIndex : colInfo.headerRowIndex + 1;
 
     for (var i = startRow; i < rows.length; i++) {
@@ -362,15 +376,17 @@
       var rawNo = getStudentNo(row, colInfo);
       var rawName = (row[nameIdx] == null ? '' : String(row[nameIdx])).trim();
       var rawText = (row[textIdx] == null ? '' : String(row[textIdx])).trim();
+      var rawSubject = subjectIdx !== -1 && row[subjectIdx] != null ? String(row[subjectIdx]).trim() : '';
+      if (rawSubject) currentSubject = rawSubject;
 
       if (isStdHeaderRow(rawNo, rawName, colInfo)) continue;
       if (!rawNo && !rawName && !rawText) continue;
 
       if (isLikelyName(rawName)) {
-        current = { no: rawNo, name: rawName, text: rawText };
+        current = { no: rawNo, name: rawName, text: rawText, subject: currentSubject };
         result.push(current);
       } else if (rawName && rawText) {
-        current = { no: rawNo, name: rawName, text: rawText };
+        current = { no: rawNo, name: rawName, text: rawText, subject: currentSubject };
         result.push(current);
       } else if (!rawNo && !rawName && rawText && current) {
         current.text += (current.text ? ' ' : '') + rawText;
@@ -397,11 +413,15 @@
     var colInfo = findColumnIndices(rows) || guessColumnIndices(rows);
     if (!colInfo) return { students: [], subjects: [], repairedSubjects: {}, sourceLabel: fileName || '', format: 'standard' };
     var parsed = parseNeisRows(rows, colInfo);
-    var subjectLabel = extractSubjectFromFileName(fileName || '');
+    // 과목명은 파일 내 '과목' 열 값을 최우선으로 쓰고(NEIS 표준 양식), 없으면 파일명에서 추출
+    var fallbackLabel = extractSubjectFromFileName(fileName || '');
+    var subjects = [];
     var students = parsed.map(function (p, i) {
-      return { id: i + 1, no: p.no, name: p.name, entries: [{ subject: subjectLabel, text: p.text }] };
+      var subj = p.subject || fallbackLabel;
+      if (subj && subjects.indexOf(subj) === -1) subjects.push(subj);
+      return { id: i + 1, no: p.no, name: p.name, entries: [{ subject: subj, text: p.text }] };
     });
-    return { students: students, subjects: subjectLabel ? [subjectLabel] : [], repairedSubjects: {}, sourceLabel: fileName || '', format: 'standard' };
+    return { students: students, subjects: subjects, repairedSubjects: {}, sourceLabel: fileName || '', format: 'standard' };
   }
 
   // ====================================================================

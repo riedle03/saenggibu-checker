@@ -128,6 +128,38 @@ if (result15) {
 }
 
 // ---------------------------------------------------------------------
+// 표본3: NEIS 업로드 표준 양식 (학년도/…/과목/과목코드/반/번호/성명/…/세특)
+// 헤더에 '과목'+'성명'이 함께 있어 인쇄덤프로 오판되면 반/번호 값(5/1 등)이
+// 페이지 푸터 정규식에 걸려 전 행이 버려지는 회귀를 방지한다.
+// ---------------------------------------------------------------------
+console.log('\n==== 표본3: NEIS 업로드 표준 양식 (뉴미디어디자인과_공통국어1_6반) ====');
+const SAMPLE_NEIS = path.join(SAMPLE_ROOT, '2026_1학기_1학년_특성화_1_뉴미디어디자인과_공통국어1_과목세특_6.xlsx');
+let resultNeis;
+try {
+  const wb = readWorkbook(SAMPLE_NEIS);
+  resultNeis = parseWorkbook(wb, { fileName: path.basename(SAMPLE_NEIS) });
+  check('표본3 파싱 예외 없이 완주', true);
+} catch (err) {
+  check('표본3 파싱 예외 없이 완주', false, err && err.stack);
+}
+
+if (resultNeis) {
+  check('표본3 format === standard', resultNeis.format === 'standard', `실제: ${resultNeis.format}`);
+  check('표본3 학생 정확히 18명', resultNeis.students.length === 18, `실제: ${resultNeis.students.length}`);
+  check(
+    "표본3 과목은 파일 내 '과목' 열 값(공통국어1)",
+    resultNeis.subjects.length === 1 && resultNeis.subjects[0] === '공통국어1',
+    `실제: ${JSON.stringify(resultNeis.subjects)}`
+  );
+  const first = resultNeis.students[0];
+  check(
+    "표본3 첫 학생 번호는 반/번호 열(6/1) + 세특 본문 보존",
+    !!first && first.no === '6/1' && first.entries.length === 1 && first.entries[0].text.length > 40,
+    first ? `no=${first.no} entries=${first.entries.length} textLen=${(first.entries[0] || {}).text ? first.entries[0].text.length : 0}` : '학생 없음'
+  );
+}
+
+// ---------------------------------------------------------------------
 // mergeStudents 스모크 테스트 (표준 모드 다중 파일 병합 계약 확인)
 // ---------------------------------------------------------------------
 console.log('\n==== mergeStudents 스모크 ====');
